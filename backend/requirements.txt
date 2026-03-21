@@ -4,4 +4,4 @@ pydantic
 sqlalchemy
 requests
 psycopg2
-sklearn
+scikit-learn
