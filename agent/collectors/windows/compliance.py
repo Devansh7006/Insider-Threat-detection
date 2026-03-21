@@ -23,7 +23,7 @@ import time
 from typing import Any, Dict, Optional, List
 
 
-DEFAULT_INTERVAL_SEC = 300.0  # 5 minutes
+DEFAULT_INTERVAL_SEC = 30.0  # 30 seconds
 
 
 def _run_command(cmd: List[str], timeout: float = 5.0) -> Optional[str]:
