@@ -207,7 +207,7 @@ def compute_risk(agent_id, events, system):
 
     if signals["file_writes"] > 50 and signals["usb_active"]:
         risk_score += 40
-        reasons.append("High file activity with USB usage")
+        reasons.append("High file activity")
 
     if signals["clipboard_events"] > 20 and signals["upload_bytes"] > signals["download_bytes"]:
         risk_score += 35
@@ -231,10 +231,6 @@ def compute_risk(agent_id, events, system):
     if signals["compliance_score"] and signals["compliance_score"] < 60:
         risk_score += 20
         reasons.append("Low compliance score")
-
-    if signals["enforcement_triggered"]:
-        risk_score += 30
-        reasons.append("Security enforcement triggered")
 
     # -------- AI ENGINE --------
     features = _get_features(signals)
