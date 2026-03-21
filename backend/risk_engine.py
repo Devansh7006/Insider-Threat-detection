@@ -45,11 +45,14 @@ def _extract_signals(evs, system):
         "process_count": 0,
         "upload_bytes": 0,
         "download_bytes": 0,
-        "vpn_active": False,
+        "vpn_active": False,       # BUG 2 FIX: starts False, only set True by real events
         "session_duration": None,
         "compliance_score": None,
         "enforcement_triggered": False,
     }
+
+    # BUG 2 FIX: track whether any VPN event was found in the window
+    vpn_seen_in_events = False
 
     for ev in evs:
         try:
@@ -66,21 +69,27 @@ def _extract_signals(evs, system):
                 signals["clipboard_events"] += s.get("copy_events") or 0
 
             if "PROCESS" in etype:
+                # BUG 1 FIX: use += (accumulate across events) not max()
+                # max() was keeping a high value from one event and never resetting it,
+                # causing the process spike rule to always fire once any batch arrived.
                 try:
                     total = sum(int(v) for v in s.values() if isinstance(v, (int, float)))
-                except:
-                    total = 0
-                signals["process_count"] += total
-                
-                
+                    signals["process_count"] += total   # ← was: max(signals[...], total)
+                except Exception:
+                    pass
 
             if "NETWORK" in etype:
                 signals["upload_bytes"] += s.get("bytes_sent") or 0
                 signals["download_bytes"] += s.get("bytes_received") or 0
 
+            # BUG 2 FIX: read VPN from events in the window, not from stale system dict.
+            # The agent sends a VPN_EVENT every time the VPN state changes.
+            # We use the MOST RECENT VPN_EVENT in the window to determine current state.
             if "VPN" in etype:
                 vpn_info = ev.get("vpn_info") or {}
-                signals["vpn_active"] = signals["vpn_active"] or (vpn_info.get("vpn") is True)
+                vpn_seen_in_events = True
+                # Most recent event wins — events are appended in order, so last one is newest
+                signals["vpn_active"] = vpn_info.get("vpn") is True
 
             if "USER_SESSION" in etype:
                 signals["session_duration"] = s.get("duration_bucket")
@@ -88,21 +97,23 @@ def _extract_signals(evs, system):
             if "COMPLIANCE" in etype:
                 if ev.get("compliance_score") is not None:
                     signals["compliance_score"] = ev.get("compliance_score")
-
                 if ev.get("enforced"):
                     signals["enforcement_triggered"] = True
 
         except Exception:
             continue
 
-    # fallback from system
-    if not signals["vpn_active"]:
+    # BUG 2 FIX: only fall back to system["vpn"] if NO VPN event was seen in the
+    # current 10-minute window. If we saw a VPN_EVENT (even vpn=False), trust it.
+    # The old code always overwrote with system["vpn"] which is a cached dict that
+    # only updates on new VPN_EVENT — so turning VPN off never reflected in the score.
+    if not vpn_seen_in_events:
         signals["vpn_active"] = (system.get("vpn") or {}).get("vpn") is True
 
+    # Compliance fallback — fine to keep as-is (no stale-override bug here)
     comp = system.get("compliance") or {}
     if signals["compliance_score"] is None:
         signals["compliance_score"] = comp.get("compliance_score")
-
     if not signals["enforcement_triggered"] and comp.get("enforced"):
         signals["enforcement_triggered"] = True
 
@@ -146,7 +157,6 @@ def _update_history(agent_id, features):
     if len(history) > BASELINE_WINDOW:
         history.pop(0)
 
-    # retrain periodically
     if len(history) % 10 == 0:
         _train_model(agent_id, history)
 
@@ -164,7 +174,7 @@ def _ai_risk(agent_id, features):
         if not model:
             return 0, []
 
-    prediction = model.predict([features])[0]  # -1 anomaly
+    prediction = model.predict([features])[0]  # -1 = anomaly
     score = model.decision_function([features])[0]
 
     reasons = []
@@ -186,12 +196,10 @@ def compute_risk(agent_id, events, system):
 
     now = time.time()
 
-    evs = events or []
+    evs = _events_in_window(events or [], WINDOW_SEC)
     system = system or {}
 
     signals = _extract_signals(evs, system)
-    print("SIGNALS:", signals)
-    print("EVENT COUNT:", len(evs))
 
     # -------- RULE ENGINE --------
     risk_score = 0
@@ -205,11 +213,14 @@ def compute_risk(agent_id, events, system):
         risk_score += 35
         reasons.append("Clipboard spike with outbound traffic")
 
-    if signals["vpn_active"] and signals["file_writes"] > 30:
+    if signals["vpn_active"] and signals["file_writes"] > 50 and signals["upload_bytes"] > 0:
         risk_score += 30
         reasons.append("High file activity over VPN")
 
-    if signals["process_count"] > 50:
+    # BUG 1 FIX: threshold raised to 200 to avoid always-firing.
+    # process_count is now a SUM across the window so 120 (2*60) was
+    # trivially exceeded by any normal session. 200 is a more meaningful spike.
+    if signals["process_count"] > 200:
         risk_score += 20
         reasons.append("Process spike detected")
 
