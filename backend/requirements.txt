@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic
-wmi
-pywin32
+sqlalchemy
+requests
+psycopg2
