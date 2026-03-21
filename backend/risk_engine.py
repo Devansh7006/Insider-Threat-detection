@@ -66,8 +66,13 @@ def _extract_signals(evs, system):
                 signals["clipboard_events"] += s.get("copy_events") or 0
 
             if "PROCESS" in etype:
-                total = sum(int(v) for v in (s.values() or []))
+                try:
+                    total = sum(int(v) for v in s.values() if isinstance(v, (int, float)))
+                except:
+                    total = 0
                 signals["process_count"] += total
+                
+                
 
             if "NETWORK" in etype:
                 signals["upload_bytes"] += s.get("bytes_sent") or 0
@@ -181,10 +186,12 @@ def compute_risk(agent_id, events, system):
 
     now = time.time()
 
-    evs = _events_in_window(events or [], WINDOW_SEC)
+    evs = events or []
     system = system or {}
 
     signals = _extract_signals(evs, system)
+    print("SIGNALS:", signals)
+    print("EVENT COUNT:", len(evs))
 
     # -------- RULE ENGINE --------
     risk_score = 0
@@ -202,7 +209,7 @@ def compute_risk(agent_id, events, system):
         risk_score += 30
         reasons.append("High file activity over VPN")
 
-    if signals["process_count"] > 20:
+    if signals["process_count"] > 50:
         risk_score += 20
         reasons.append("Process spike detected")
 
