@@ -1,0 +1,45 @@
+:root{
+  --bg:#0f2a33;
+  --card:#0f3940;
+  --muted:#9fb4b9;
+  --accent:#2db3a6;
+  --panel:#08131a;
+  --glass: rgba(255,255,255,0.03);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+*{box-sizing:border-box}
+html,body,#root{height:100%;margin:0;background:linear-gradient(180deg,var(--bg),#042029);color:#eaf5f4}
+.container{max-width:1200px;margin:28px auto;padding:20px}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.title{font-size:28px;font-weight:700}
+.topline{color:var(--muted)}
+.grid{display:grid;grid-template-columns:320px 1fr;gap:20px}
+.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.02));padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,8,0.6)}
+.system-item{padding:12px;border-radius:10px;margin-bottom:10px;background:var(--glass);cursor:pointer}
+.system-item:hover{outline:1px solid rgba(255,255,255,0.03)}
+.small{font-size:13px;color:var(--muted)}
+.system-title{font-weight:600}
+.mainpanel{min-height:420px;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.02))}
+.row{display:flex;gap:12px;align-items:center}
+.stat{flex:1;padding:12px;border-radius:10px;background:linear-gradient(0deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02))}
+.charts{display:flex;gap:14px;margin-top:14px}
+.left-chart{flex:2}
+.right-chart{flex:1}
+.login-wrap{display:flex;align-items:center;justify-content:center;height:100vh}
+.login-card{width:420px;padding:28px;border-radius:14px;background:#07282c;box-shadow:0 8px 36px rgba(1,6,8,0.6)}
+.input{width:100%;padding:10px;margin-top:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+.btn{padding:10px 14px;border-radius:8px;border:0;background:var(--accent);color:#042029;font-weight:700;cursor:pointer;margin-top:12px}
+.kv{display:flex;justify-content:space-between;margin-top:6px;color:var(--muted);font-size:13px}
+.footer{margin-top:18px;color:var(--muted);font-size:13px}
+
+/* Risk level colors */
+.risk-low{color:#4ade80;background:rgba(74,222,128,0.12);}
+.risk-medium{color:#facc15;background:rgba(250,204,21,0.12);}
+.risk-high{color:#fb923c;background:rgba(251,146,60,0.12);}
+.risk-critical{color:#f87171;background:rgba(248,113,113,0.15);}
+.risk-badge{display:inline-block;padding:4px 10px;border-radius:8px;font-size:12px;font-weight:700;text-transform:uppercase;}
+.risk-score{font-weight:700;font-size:18px;}
+.behavior-card{padding:14px;border-radius:10px;background:var(--glass);margin-bottom:12px;}
+.behavior-card h4{font-size:13px;margin:0 0 8px 0;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+.reasons-list{list-style:none;padding:0;margin:0;}
+.reasons-list li{padding:8px 12px;margin-bottom:6px;border-radius:8px;background:rgba(255,255,255,0.03);border-left:3px solid var(--accent);}

@@ -1,0 +1,120 @@
+.dkx-agent-page {
+  min-height: 100vh;
+  background-image: url("../assets/agent-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* Dark cyber overlay */
+.dkx-agent-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at center,
+    rgba(10, 5, 20, 0.55),
+    rgba(5, 2, 10, 0.9)
+  );
+  z-index: 0;
+}
+
+.dkx-agent-panel {
+  position: relative;
+  z-index: 1;
+
+  width: 960px;
+  max-width: calc(100% - 48px);
+  padding: 36px;
+
+  background: rgba(255,255,255,0.05);
+  backdrop-filter: blur(18px);
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+
+  box-shadow: 0 0 60px rgba(255,77,255,0.15);
+  color: #eaffff;
+}
+
+.dkx-agent-header h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0.8px;
+}
+
+.dkx-agent-header p {
+  margin-top: 6px;
+  opacity: 0.7;
+  font-size: 13px;
+}
+
+.dkx-agent-grid {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 22px;
+}
+
+/* ================= AGENT CARD ================= */
+
+.dkx-agent-card {
+  padding: 18px;
+  border-radius: 16px;
+
+  background: rgba(0,0,0,0.45);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+
+  transition: all 0.18s ease;
+}
+
+.dkx-agent-active {
+  box-shadow: 0 0 26px rgba(255,77,255,0.6);
+  border-color: rgba(255,77,255,0.6);
+}
+
+.dkx-agent-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0 30px rgba(255,77,255,0.75);
+}
+
+/* Avatar */
+.dkx-agent-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+
+  background: linear-gradient(135deg, #ff4dff, #7a4dff);
+  color: #090014;
+  font-weight: 700;
+}
+
+/* Meta */
+.dkx-agent-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dkx-agent-dept {
+  display: block;
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.dkx-agent-action {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #ffb3ff;
+  opacity: 0.85;
+}

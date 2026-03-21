@@ -1,0 +1,12 @@
+vpn-
+python -m agent.vpn_api
+
+frontend- npm run dev
+
+agent - python -m agent.agent
+nhyu
+back888end(inside backend folder)-
+venv\Scripts\activate
+uvicorn backend.main:app --reload --port 8000
+
+vpn-python -m agent.vpn_api

@@ -1,0 +1,14 @@
+{
+  "name": "itd-dev",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "backend": "cd backend && venv\\Scripts\\python -m uvicorn main:app --reload --port 8000",
+    "frontend": "cd frontend && npm run dev",
+    "agent": "python -m agent.agent",
+    "server": "concurrently -n BACKEND,FRONTEND,AGENT -c green,cyan,yellow \"npm run backend\" \"npm run frontend\" \"npm run agent\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

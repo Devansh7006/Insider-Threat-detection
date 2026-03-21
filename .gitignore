@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environment
+venv/
+env/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+node_modules/
+state.json
+vpn_api.stdout.log
+vpn_api.stderr.log
+.env
+node_modules/
+frontend/node_modules/
+dist/
+build/
+venv/
+__pycache__/
+*.pyc

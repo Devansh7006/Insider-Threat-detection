@@ -1,0 +1,3 @@
+backend_url: "https://insider-threat-detection-szmm.onrender.com"
+agent_id: "agent-001"
+heartbeat_interval: 10

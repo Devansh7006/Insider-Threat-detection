@@ -1,0 +1,23 @@
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: bold;
+  margin-right: 12px;
+}
+
+.badge.MEDIUM { background: #facc15; color: #000; }
+.badge.HIGH { background: #ef4444; color: #fff; }
+.badge.LOW { background: #22c55e; color: #000; }
