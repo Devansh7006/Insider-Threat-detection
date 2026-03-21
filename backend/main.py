@@ -165,7 +165,22 @@ def get_system(agent_id: str):
 
 @app.get("/api/v1/systems")
 def get_all_systems():
-    return list(systems.values())
+    now = time.time()
+    TIMEOUT = 30  # seconds
+
+    active_systems = []
+
+    for system in systems.values():
+        last = system.get("last_seen", 0)
+
+        # mark active/inactive
+        system["active"] = (now - last) < TIMEOUT
+
+        # only return active agents
+        if system["active"]:
+            active_systems.append(system)
+
+    return active_systems
 
 # ------------------ Risk Engine ------------------
 
