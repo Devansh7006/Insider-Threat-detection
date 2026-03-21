@@ -1,23 +1,34 @@
 """
-Risk Rule Engine for Insider Threat Detection.
+AI-Augmented Risk Rule Engine for Insider Threat Detection
 
-Weighted, multi-signal risk scoring. Correlates events over a sliding time window.
-Deterministic and explainable; no ML, no DB.
+- Rule-based scoring
+- Isolation Forest anomaly detection (per-agent)
+- In-memory learning + auto retraining
 """
+
 import time
 from typing import Dict, Any, List
+from sklearn.ensemble import IsolationForest
 
-# Sliding window (seconds)
-WINDOW_SEC = 600  # 10 minutes
+# ---------------- CONFIG ----------------
 
-# Risk level thresholds
+WINDOW_SEC = 600
+
 THRESHOLD_MEDIUM = 30
 THRESHOLD_HIGH = 60
 THRESHOLD_CRITICAL = 80
 
+BASELINE_WINDOW = 100
+MIN_TRAIN_SIZE = 20
 
-def _events_in_window(events: List[Dict[str, Any]], window_sec: float) -> List[Dict[str, Any]]:
-    """Return events with received_at within the last window_sec."""
+# ---------------- STORAGE ----------------
+
+AGENT_HISTORY: Dict[str, List[List[float]]] = {}
+AGENT_MODELS: Dict[str, IsolationForest] = {}
+
+# ---------------- HELPERS ----------------
+
+def _events_in_window(events, window_sec):
     if not events:
         return []
     now = time.time()
@@ -25,11 +36,8 @@ def _events_in_window(events: List[Dict[str, Any]], window_sec: float) -> List[D
     return [ev for ev in events if (ev.get("received_at") or ev.get("timestamp") or 0) >= cutoff]
 
 
-def _extract_signals(evs: List[Dict[str, Any]], system: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extract numeric/boolean signals from recent events and system state.
-    Handles missing event types safely; uses defaults (0, False, None).
-    """
+def _extract_signals(evs, system):
+
     signals = {
         "file_writes": 0,
         "usb_active": False,
@@ -48,159 +56,194 @@ def _extract_signals(evs: List[Dict[str, Any]], system: Dict[str, Any]) -> Dict[
             etype = (ev.get("event_type") or "").upper()
             s = ev.get("summary") or {}
 
-            # FILE_ACTIVITY / FILE_ACTIVITY_SUMMARY
             if "FILE_ACTIVITY" in etype:
                 signals["file_writes"] += s.get("write") or s.get("writes") or 0
 
-            # USB_EVENT, USB_REALTIME, USB_INSERT, USB_MODIFIED
             if "USB" in etype and "USB_REMOVE" not in etype:
                 signals["usb_active"] = True
 
-            # CLIPBOARD_ACTIVITY / CLIPBOARD_ACTIVITY_SUMMARY
             if "CLIPBOARD" in etype:
                 signals["clipboard_events"] += s.get("copy_events") or 0
 
-            # PROCESS_ACTIVITY / PROCESS_ACTIVITY_SUMMARY
             if "PROCESS" in etype:
-                proc_summary = s if isinstance(s, dict) else {}
-                total = sum(int(v) for v in (proc_summary.values() or []))
+                total = sum(int(v) for v in (s.values() or []))
                 signals["process_count"] += total
 
-            # NETWORK_ACTIVITY / NETWORK_ACTIVITY_SUMMARY / NETWORK_VOLUME
             if "NETWORK" in etype:
                 signals["upload_bytes"] += s.get("bytes_sent") or 0
                 signals["download_bytes"] += s.get("bytes_received") or 0
 
-            # VPN_EVENT
             if "VPN" in etype:
                 vpn_info = ev.get("vpn_info") or {}
                 signals["vpn_active"] = signals["vpn_active"] or (vpn_info.get("vpn") is True)
 
-            # USER_SESSION_SUMMARY
             if "USER_SESSION" in etype:
                 signals["session_duration"] = s.get("duration_bucket")
 
-            # COMPLIANCE_STATUS / COMPLIANCE_EVENT
-            if "COMPLIANCE_STATUS" in etype or "COMPLIANCE_EVENT" in etype:
-                score = ev.get("compliance_score")
-                if score is not None:
-                    signals["compliance_score"] = score
-                enforced = ev.get("enforced") or []
-                if enforced:
-                    signals["enforcement_triggered"] = True
+            if "COMPLIANCE" in etype:
+                if ev.get("compliance_score") is not None:
+                    signals["compliance_score"] = ev.get("compliance_score")
 
-            # COMPLIANCE_ENFORCED
-            if "COMPLIANCE_ENFORCED" in etype:
-                signals["enforcement_triggered"] = True
+                if ev.get("enforced"):
+                    signals["enforcement_triggered"] = True
 
         except Exception:
             continue
 
-    # VPN from system state (heartbeat/ingest)
+    # fallback from system
     if not signals["vpn_active"]:
-        vpn_info = system.get("vpn") or {}
-        signals["vpn_active"] = vpn_info.get("vpn") is True
+        signals["vpn_active"] = (system.get("vpn") or {}).get("vpn") is True
 
-    # Compliance from system state
+    comp = system.get("compliance") or {}
     if signals["compliance_score"] is None:
-        comp = system.get("compliance") or {}
         signals["compliance_score"] = comp.get("compliance_score")
-    if not signals["enforcement_triggered"]:
-        comp = system.get("compliance") or {}
-        if comp.get("enforced"):
-            signals["enforcement_triggered"] = True
+
+    if not signals["enforcement_triggered"] and comp.get("enforced"):
+        signals["enforcement_triggered"] = True
 
     return signals
 
 
-def compute_risk(
-    agent_id: str,
-    events: List[Dict[str, Any]],
-    system: Dict[str, Any],
-    window_sec: float = WINDOW_SEC,
-) -> Dict[str, Any]:
-    """
-    Compute weighted risk score and level for one agent from events in the sliding window.
-    Returns agent_id, risk_score, risk_level, reasons, last_updated.
-    """
+# ---------------- FEATURES ----------------
+
+def _get_features(signals):
+    return [
+        signals["file_writes"],
+        int(signals["usb_active"]),
+        signals["clipboard_events"],
+        signals["process_count"],
+        signals["upload_bytes"],
+        signals["download_bytes"],
+        int(signals["vpn_active"]),
+    ]
+
+
+# ---------------- MODEL ----------------
+
+def _train_model(agent_id, history):
+    if len(history) < MIN_TRAIN_SIZE:
+        return
+
+    model = IsolationForest(
+        n_estimators=100,
+        contamination=0.05,
+        random_state=42
+    )
+
+    model.fit(history)
+    AGENT_MODELS[agent_id] = model
+
+
+def _update_history(agent_id, features):
+    history = AGENT_HISTORY.setdefault(agent_id, [])
+    history.append(features)
+
+    if len(history) > BASELINE_WINDOW:
+        history.pop(0)
+
+    # retrain periodically
+    if len(history) % 10 == 0:
+        _train_model(agent_id, history)
+
+
+def _ai_risk(agent_id, features):
+
+    history = AGENT_HISTORY.get(agent_id, [])
+    if len(history) < MIN_TRAIN_SIZE:
+        return 0, []
+
+    model = AGENT_MODELS.get(agent_id)
+    if not model:
+        _train_model(agent_id, history)
+        model = AGENT_MODELS.get(agent_id)
+        if not model:
+            return 0, []
+
+    prediction = model.predict([features])[0]  # -1 anomaly
+    score = model.decision_function([features])[0]
+
+    reasons = []
+
+    if prediction == -1:
+        if score < -0.1:
+            reasons.append("Strong anomaly detected (AI)")
+            return 30, reasons
+        else:
+            reasons.append("Mild anomaly detected (AI)")
+            return 15, reasons
+
+    return 0, []
+
+
+# ---------------- MAIN ENGINE ----------------
+
+def compute_risk(agent_id, events, system):
+
     now = time.time()
-    evs = _events_in_window(events or [], window_sec)
+
+    evs = _events_in_window(events or [], WINDOW_SEC)
     system = system or {}
 
     signals = _extract_signals(evs, system)
-    risk_score = 0
-    reasons: List[str] = []
 
-    # --- RULE: File burst + USB ---
+    # -------- RULE ENGINE --------
+    risk_score = 0
+    reasons = []
+
     if signals["file_writes"] > 50 and signals["usb_active"]:
         risk_score += 40
-        reasons.append("High file activity with USB usage (possible data exfiltration)")
+        reasons.append("High file activity with USB usage")
 
-    # --- RULE: Clipboard + Network upload ---
     if signals["clipboard_events"] > 20 and signals["upload_bytes"] > signals["download_bytes"]:
         risk_score += 35
-        reasons.append("Clipboard spike with high outbound network traffic")
+        reasons.append("Clipboard spike with outbound traffic")
 
-    # --- RULE: VPN + File activity ---
     if signals["vpn_active"] and signals["file_writes"] > 30:
         risk_score += 30
-        reasons.append("High file activity over VPN connection")
+        reasons.append("High file activity over VPN")
 
-    # --- RULE: Process spike ---
     if signals["process_count"] > 20:
         risk_score += 20
-        reasons.append("Unusual number of processes started")
+        reasons.append("Process spike detected")
 
-    # --- RULE: Network exfiltration ---
-    if signals["download_bytes"] > 0 and signals["upload_bytes"] > signals["download_bytes"] * 2:
+    if signals["upload_bytes"] > signals["download_bytes"] * 2:
         risk_score += 30
-        reasons.append("Unusually high outbound network traffic")
-    elif signals["download_bytes"] == 0 and signals["upload_bytes"] > 0:
-        risk_score += 30
-        reasons.append("Unusually high outbound network traffic")
+        reasons.append("High outbound traffic")
 
-    # --- RULE: Compliance violation + activity ---
-    comp_score = signals["compliance_score"]
-    if comp_score is not None and comp_score < 60 and signals["file_writes"] > 30:
-        risk_score += 35
-        reasons.append("High activity on non-compliant system")
+    if signals["compliance_score"] and signals["compliance_score"] < 60:
+        risk_score += 20
+        reasons.append("Low compliance score")
 
-    # --- RULE: Enforcement triggered ---
     if signals["enforcement_triggered"]:
         risk_score += 30
-        reasons.append("System automatically enforced security policy")
+        reasons.append("Security enforcement triggered")
 
-    # --- RULE: Long session activity ---
-    session_dur = signals["session_duration"]
-    long_session = session_dur in (">120", "120+")
-    if long_session and signals["file_writes"] > 30:
-        risk_score += 20
-        reasons.append("High activity during extended session")
+    # -------- AI ENGINE --------
+    features = _get_features(signals)
 
-    # --- RULE: Multi-signal correlation ---
-    if (
-        signals["usb_active"]
-        and signals["clipboard_events"] > 10
-        and signals["upload_bytes"] > signals["download_bytes"]
-    ):
-        risk_score += 25
-        reasons.append("Multi-channel data exfiltration pattern detected")
+    ai_score, ai_reasons = _ai_risk(agent_id, features)
+    risk_score += ai_score
+    reasons.extend(ai_reasons)
 
-    # --- Risk level ---
+    # update history AFTER scoring
+    _update_history(agent_id, features)
+
+    # -------- FINAL --------
     risk_score = min(100, risk_score)
+
     if risk_score >= THRESHOLD_CRITICAL:
-        risk_level = "CRITICAL"
+        level = "CRITICAL"
     elif risk_score >= THRESHOLD_HIGH:
-        risk_level = "HIGH"
+        level = "HIGH"
     elif risk_score >= THRESHOLD_MEDIUM:
-        risk_level = "MEDIUM"
+        level = "MEDIUM"
     else:
-        risk_level = "LOW"
+        level = "LOW"
 
     return {
         "agent_id": agent_id,
         "risk_score": risk_score,
-        "risk_level": risk_level,
+        "risk_level": level,
         "reasons": reasons,
         "last_updated": now,
     }
