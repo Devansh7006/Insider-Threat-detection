@@ -62,7 +62,7 @@ localStorage.setItem(
         </div>
 
         <h1 className="dkx-title">Dikoryx</h1>
-        <p className="dkx-sub">Prove you’re not just another glitch.</p>
+        <p className="dkx-sub">Username:devansh Password:goyal</p>
 
         <form className="dkx-form" onSubmit={handleSubmit}>
           <input
