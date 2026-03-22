@@ -1,9 +1,10 @@
+/*
 import { useState, useEffect } from "react";
 import Dashboard from "./Pages/Dashboard";
 import "./styles/login.css";
 
 /* ================= LOGIN COMPONENT ================= */
-
+/*
 function Login({ onSuccess }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("");
@@ -90,7 +91,7 @@ function Login({ onSuccess }) {
 }
 
 /* ================= APP CONTROLLER ================= */
-
+/*
 export default function App() {
   const [user, setUser] = useState(null);
   
@@ -146,3 +147,4 @@ export default function App() {
     />
   );
 }
+*/
